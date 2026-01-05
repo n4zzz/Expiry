@@ -1,13 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../api/supabase';
 
 export default function DashboardScreen() {
   const [items, setItems] = useState([]);
 
-  useEffect(() => {
-    fetchItems();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchItems();
+    }, [])
+  );
 
   const fetchItems = async () => {
     const { data, error } = await supabase
@@ -30,7 +33,7 @@ export default function DashboardScreen() {
             <Text style={styles.itemDate}>{item.expiry_date}</Text>
           </View>
         )}
-        ListEmptyComponent={<Text>No items found. Add some!</Text>}
+        ListEmptyComponent={<Text style={styles.emptyText}>No items found. Add some!</Text>}
       />
     </View>
   );
@@ -39,7 +42,16 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: '#f8f9fa' },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
-  itemRow: { flexDirection: 'row', justifyContent: 'space-between', padding: 15, backgroundColor: '#fff', borderRadius: 8, marginBottom: 10, elevation: 2 },
+  itemRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    padding: 15, 
+    backgroundColor: '#fff', 
+    borderRadius: 8, 
+    marginBottom: 10, 
+    elevation: 2 
+  },
   itemName: { fontSize: 16, fontWeight: '500' },
-  itemDate: { color: '#e74c3c' }
+  itemDate: { color: '#e74c3c' },
+  emptyText: { textAlign: 'center', marginTop: 20, color: '#999' }
 });
