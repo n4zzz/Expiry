@@ -1,24 +1,34 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, Alert, TouchableOpacity, Image, ScrollView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
-import { decode } from 'base64-arraybuffer';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { supabase } from '../api/supabase';
 import { Camera, Image as ImageIcon, X } from 'lucide-react-native';
 
-const CATEGORIES = ['Food', 'Medicine', 'Beauty', 'Household'];
-const FOOD_SUB = ['Pantry', 'Fridge', 'Freezer'];
+const CATEGORY_OPTIONS = {
+  'Food': ['Pantry', 'Fridge', 'Freezer'],
+  'Medicine': ['Cabinet', 'First Aid', 'Storage'],
+  'Beauty': ['Bathroom', 'Vanity', 'Travel Bag'],
+  'Household': ['Kitchen', 'Laundry', 'Garage']
+};
+
+const CATEGORIES = Object.keys(CATEGORY_OPTIONS);
 
 export default function AddItemScreen({ navigation }) {
   const [name, setName] = useState('');
+  const [price, setPrice] = useState('');
   const [category, setCategory] = useState('Food');
-  const [subCategory, setSubCategory] = useState('Pantry');
+  const [subCategory, setSubCategory] = useState(CATEGORY_OPTIONS['Food'][0]);
   const [location, setLocation] = useState('');
   const [date, setDate] = useState(new Date());
   const [showPicker, setShowPicker] = useState(false);
   const [image, setImage] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  const handleCategoryChange = (newCategory) => {
+    setCategory(newCategory);
+    setSubCategory(CATEGORY_OPTIONS[newCategory][0]);
+  };
 
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -61,14 +71,12 @@ export default function AddItemScreen({ navigation }) {
     if (image) {
       try {
         const fileName = `${Date.now()}.jpg`;
-
-        const base64 = await FileSystem.readAsStringAsync(image, {
-          encoding: 'base64',
-        });
+        const response = await fetch(image);
+        const arrayBuffer = await response.arrayBuffer();
 
         const { error: uploadError } = await supabase.storage
           .from('location-images')
-          .upload(fileName, decode(base64), {
+          .upload(fileName, arrayBuffer, {
             contentType: 'image/jpeg',
             upsert: false,
           });
@@ -79,7 +87,6 @@ export default function AddItemScreen({ navigation }) {
         } else {
           const { data: urlData } = supabase.storage.from('location-images').getPublicUrl(fileName);
           publicUrl = urlData.publicUrl;
-          console.log('Image uploaded successfully:', publicUrl);
         }
       } catch (uploadErr) {
         console.error('Image upload failed:', uploadErr);
@@ -87,20 +94,21 @@ export default function AddItemScreen({ navigation }) {
       }
     }
 
-    const finalCategory = category === 'Food' ? `Food (${subCategory})` : category;
-
     const { error } = await supabase
       .from('items')
       .insert([{
         name,
-        category: finalCategory,
+        category: category,
+        sub_category: subCategory,
         location,
+        price: price ? parseFloat(price) : 0.00,
         image_url: publicUrl,
         expiry_date: date.toISOString().split('T')[0]
       }]);
 
     setLoading(false);
     if (error) {
+      console.error(error);
       Alert.alert('Error', error.message);
     } else {
       Alert.alert('Success', 'Item added!');
@@ -111,29 +119,48 @@ export default function AddItemScreen({ navigation }) {
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.label}>Item Name</Text>
-      <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Milk" />
+      <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Item Name (e.g. Milk)" />
+
+      <Text style={styles.label}>Price (Optional)</Text>
+      <View style={styles.priceContainer}>
+        <Text style={styles.currencyPrefix}>$</Text>
+        <TextInput
+          style={[styles.input, styles.priceInput]}
+          value={price}
+          onChangeText={setPrice}
+          placeholder="0.00"
+          keyboardType="decimal-pad"
+        />
+      </View>
 
       <Text style={styles.label}>Category</Text>
       <View style={styles.row}>
         {CATEGORIES.map(cat => (
-          <TouchableOpacity key={cat} style={[styles.chip, category === cat && styles.activeChip]} onPress={() => setCategory(cat)}>
+          <TouchableOpacity
+            key={cat}
+            style={[styles.chip, category === cat && styles.activeChip]}
+            onPress={() => handleCategoryChange(cat)}
+          >
             <Text style={category === cat ? styles.activeText : styles.text}>{cat}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {category === 'Food' && (
-        <View style={styles.row}>
-          {FOOD_SUB.map(sub => (
-            <TouchableOpacity key={sub} style={[styles.subChip, subCategory === sub && styles.activeSub]} onPress={() => setSubCategory(sub)}>
-              <Text style={subCategory === sub ? styles.activeText : styles.text}>{sub}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
+      <Text style={styles.label}>Storage Type</Text>
+      <View style={styles.row}>
+        {CATEGORY_OPTIONS[category].map(sub => (
+          <TouchableOpacity
+            key={sub}
+            style={[styles.subChip, subCategory === sub && styles.activeSub]}
+            onPress={() => setSubCategory(sub)}
+          >
+            <Text style={subCategory === sub ? styles.activeText : styles.text}>{sub}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
-      <Text style={styles.label}>Location Details</Text>
-      <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="Fridge Bottom Shelf" />
+      <Text style={styles.label}>Exact Location Details</Text>
+      <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="e.g. Bottom Shelf, Blue Box" />
 
       <Text style={styles.label}>Expiry Date</Text>
       <TouchableOpacity style={styles.input} onPress={() => setShowPicker(true)}>
@@ -179,7 +206,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 },
   chip: { padding: 8, borderWidth: 1, borderColor: '#2ecc71', borderRadius: 20, marginRight: 8, marginBottom: 8 },
   activeChip: { backgroundColor: '#2ecc71' },
-  subChip: { padding: 6, borderWidth: 1, borderColor: '#999', borderRadius: 20, marginRight: 8 },
+  subChip: { padding: 8, borderWidth: 1, borderColor: '#999', borderRadius: 20, marginRight: 8, marginBottom: 8 },
   activeSub: { backgroundColor: '#999' },
   text: { color: '#2ecc71' },
   activeText: { color: '#fff' },
@@ -190,4 +217,7 @@ const styles = StyleSheet.create({
   imageWrapper: { height: 200, width: '100%', position: 'relative' },
   fullImg: { width: '100%', height: '100%', borderRadius: 10 },
   removeBtn: { position: 'absolute', top: 5, right: 5, backgroundColor: 'rgba(0,0,0,0.5)', width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
+  priceContainer: { flexDirection: 'row', alignItems: 'center' },
+  currencyPrefix: { fontSize: 18, fontWeight: 'bold', marginRight: 10, marginBottom: 10 },
+  priceInput: { flex: 1 },
 });
