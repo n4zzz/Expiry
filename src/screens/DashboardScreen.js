@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, Image, TouchableOpacity, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../api/supabase';
-import { ChevronDown, ChevronUp, MapPin, Tag } from 'lucide-react-native';
+import { ChevronDown, ChevronUp, MapPin, Tag, Package } from 'lucide-react-native';
 
 export default function DashboardScreen() {
   const [items, setItems] = useState([]);
@@ -58,6 +58,11 @@ export default function DashboardScreen() {
                   <View style={styles.infoRow}>
                     <Tag size={16} color="#2ecc71" />
                     <Text style={styles.infoText}>Category: {item.category || 'Uncategorized'}</Text>
+                  </View>
+
+                  <View style={styles.infoRow}>
+                    <Package size={16} color="#2ecc71" />
+                    <Text style={styles.infoText}>Storage: {item.sub_category || 'General'}</Text>
                   </View>
 
                   <View style={styles.infoRow}>
